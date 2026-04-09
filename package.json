@@ -1,0 +1,60 @@
+{
+  "name": "@cypherhq/agent-pay",
+  "version": "0.1.0-beta.15",
+  "description": "Zero-dependency TypeScript client for the CypherHQ Agent-Pay virtual card API. Build AI agents that make real purchases.",
+  "keywords": [
+    "agent",
+    "ai",
+    "payments",
+    "virtual-card",
+    "cypherhq",
+    "fintech",
+    "sdk",
+    "typescript"
+  ],
+  "homepage": "https://github.com/CypherD-IO/agent-pay#readme",
+  "bugs": {
+    "url": "https://github.com/CypherD-IO/agent-pay/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CypherD-IO/agent-pay.git"
+  },
+  "author": "CypherHQ",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "agent-pay": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {}
+}

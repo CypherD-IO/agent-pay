@@ -1,0 +1,31 @@
+node_modules/
+dist/
+*.tgz
+
+# Secrets / credentials
+.env
+.env.*
+.npmrc
+*.key
+*.pem
+*.p12
+*.pfx
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test / coverage artifacts
+coverage/
+.nyc_output/
+
+# Local tooling
+.claude/
+.agents/
+skills-lock.json
+
+# Demo / media
+*.mp4
+*.tape

@@ -1,0 +1,11 @@
+{
+  "name": "cypherhq/agent-pay",
+  "version": "0.1.0",
+  "private": false,
+  "summary": "Auto-provision a virtual Visa card to complete an online purchase. Use when user asks to buy something and needs payment, or explicitly mentions cypher-pay/agent-pay. Handles onboarding (email OTP + KYC — once ever), token generation (once per device), funding, card creation, 3DS, and card lifecycle.",
+  "skills": {
+    "agent-pay": {
+      "path": "skills/agent-pay/SKILL.md"
+    }
+  }
+}
