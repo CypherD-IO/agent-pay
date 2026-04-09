@@ -103,7 +103,7 @@ export type AgentPayError = AgentPayAuthError | AgentPayApiError;
 const DEFAULT_BASE = 'https://arch-dev.cypherd.io/v1';
 
 /** Validate + normalize config into a resolved `{ token, baseUrl }` pair. */
-const resolveConfig = (
+export const resolveConfig = (
   config: AgentPayConfig,
 ): Readonly<{ token: string; baseUrl: string }> => {
   const token = config.token ?? process.env.AGENT_PAY_TOKEN ?? '';
@@ -125,11 +125,11 @@ const resolveConfig = (
 };
 
 /** Parse a string-or-number into a number, returning NaN on undefined. */
-const coerceNum = (v: string | number | undefined): number =>
+export const coerceNum = (v: string | number | undefined): number =>
   v === undefined ? NaN : typeof v === 'number' ? v : parseFloat(v);
 
 /** Convert the raw `/balance` response into available cents. */
-const toBalanceCents = (data: {
+export const toBalanceCents = (data: {
   balance?: string | number;
   amountWithheld?: string | number;
 }): number => {
@@ -142,7 +142,7 @@ const toBalanceCents = (data: {
 };
 
 /** Normalize the backend's card-list response into a plain array. */
-const unwrapCardList = (raw: unknown): readonly unknown[] => {
+export const unwrapCardList = (raw: unknown): readonly unknown[] => {
   if (Array.isArray(raw)) return raw;
   if (raw && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>;
@@ -155,7 +155,7 @@ const unwrapCardList = (raw: unknown): readonly unknown[] => {
 };
 
 /** Find a card's id in a listing by its `agentTag`. */
-const findByAgentTag = (cards: readonly unknown[], tag: string): string | undefined =>
+export const findByAgentTag = (cards: readonly unknown[], tag: string): string | undefined =>
   cards.reduce<string | undefined>((found, c) => {
     if (found) return found;
     if (!c || typeof c !== 'object') return undefined;
@@ -170,7 +170,7 @@ const findByAgentTag = (cards: readonly unknown[], tag: string): string | undefi
  * provider-dependent response. Walks known field candidates shallowly,
  * then recurses into `pendingChallenge` if present.
  */
-const extractRequestId = (raw: unknown): string | undefined => {
+export const extractRequestId = (raw: unknown): string | undefined => {
   if (!raw || typeof raw !== 'object') return undefined;
   const obj = raw as Record<string, unknown>;
   const found = (['requestId', 'uniqueId'] as const)
