@@ -21,4 +21,5 @@ export type {
   TransactionQueryOpts,
   FundingUrlResponse,
   FundStatusInput,
+  CancelCardResponse,
 } from './client.js';

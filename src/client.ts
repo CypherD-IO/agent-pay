@@ -134,6 +134,12 @@ export interface TransactionQueryOpts {
   readonly endDate?: number;
 }
 
+export interface CancelCardResponse {
+  readonly cardId: string;
+  readonly status: string;
+  readonly [key: string]: unknown;
+}
+
 export interface FundingUrlResponse {
   readonly transakUrl: string;
   readonly quoteId: string;
@@ -363,6 +369,8 @@ export interface AgentPayClient {
   readonly getCardRequest: (requestId: string) => Promise<CardRequestStatus>;
   /** Get full card metadata by card ID. */
   readonly getCard: (cardId: string) => Promise<CardDetail>;
+  /** Permanently cancel a card. The card is closed at the provider and cannot be reactivated. */
+  readonly cancelCard: (cardId: string, reason?: string) => Promise<CancelCardResponse>;
   readonly revealCard: (cardId: string) => Promise<RevealCardResponse>;
   /** Get transactions for a specific card. */
   readonly getCardTransactions: (cardId: string, opts?: TransactionQueryOpts) => Promise<unknown>;
@@ -429,6 +437,8 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     botFetch<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) });
   const patch = <T = unknown>(path: string, body: unknown) =>
     botFetch<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+  const del = <T = unknown>(path: string, body?: unknown) =>
+    botFetch<T>(path, { method: 'DELETE', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
 
   /** Unauthenticated POST — used only for auth endpoints (no Authorization header). */
   const publicPost = async <T = unknown>(path: string, body?: unknown): Promise<T> => {
@@ -484,6 +494,9 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
 
   const getCard = (cardId: string) =>
     get<CardDetail>(`/card/${cardId}`);
+
+  const cancelCard = (cardId: string, reason?: string) =>
+    del<CancelCardResponse>(`/card/${cardId}`, reason !== undefined ? { reason } : undefined);
 
   const revealCard = (cardId: string) =>
     post<RevealCardResponse>(`/card/${cardId}/reveal`);
@@ -620,6 +633,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     listCardsByTag,
     getCardRequest,
     getCard,
+    cancelCard,
     revealCard,
     getCardTransactions,
     getCardLimits,

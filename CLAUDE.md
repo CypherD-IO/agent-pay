@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # @cypherhq/agent-pay
 
 ## What this is
@@ -35,6 +39,7 @@ src/
 ```bash
 npm run build        # tsc → dist/
 npm test             # vitest run
+npx vitest run -t 'test name'  # run a single test by name
 npx tsc --noEmit     # type-check without emitting
 ```
 
@@ -66,13 +71,25 @@ The record returned by `createClient()` has these functions:
 
 | Function | Description |
 |---|---|
+| `requestToken(email)` | Request an OTP for authentication. |
+| `verifyOtp(email, otp)` | Verify OTP and receive a bot token. |
+| `submitApplication(details)` | Submit KYC/onboarding application. |
+| `getKycStatus()` | Check KYC verification status. |
+| `pollKycUntilComplete(opts?)` | Poll until KYC reaches `"completed"`. |
+| `rotateToken()` | Rotate the bot token. |
 | `getAgent()` | Validate the token. Throws `AgentPayAuthError` on 401. |
 | `getBalanceCents()` | Available balance in USD cents. |
 | `createCard(input)` | Create a virtual card. Returns `{ status, tag }` — **no `cardId`**. |
 | `createCardAndResolve(input)` | Create + poll listing to resolve `cardId`. Retries on transient failures. |
 | `listAllCards()` | List all cards on the agent. |
 | `listCardsByTag(tag)` | List cards filtered by tag. |
+| `getCardRequest(cardId)` | Get the original card creation request. |
+| `getCard(cardId)` | Get card details by ID. |
+| `cancelCard(cardId, reason?)` | Permanently cancel a card. Closed at the provider, cannot be reactivated. |
 | `revealCard(cardId)` | Reveal PAN/CVV/expiry. **SECRET — never log.** |
+| `getCardTransactions(cardId)` | Get transactions for a specific card. |
+| `getCardLimits(cardId)` | Get spend limits for a card. |
+| `updateCardLimits(cardId, limits)` | Update spend limits for a card. |
 | `setCardStatus(cardId, status)` | Freeze (`'inactive'`) or unfreeze (`'active'`). |
 | `freezeCard(cardId)` | Shorthand for `setCardStatus(cardId, 'inactive')`. |
 | `patchRules(rules)` | Update agent rules (limits, max cards). |
@@ -81,6 +98,10 @@ The record returned by `createClient()` has these functions:
 | `approve3ds(requestId)` | Approve a 3DS challenge. |
 | `deny3ds(requestId)` | Deny a 3DS challenge. |
 | `pollAndApprove3ds(cardId, opts?)` | Poll for 3DS challenges and auto-approve. Default: 60s timeout, 2s interval. |
+| `getFundingUrl()` | Get a URL for funding the agent's balance. |
+| `reportFundStatus(status)` | Report funding completion status. |
+| `getAllTransactions(params?)` | Get all transactions across cards. |
+| `getSpendStats(params?)` | Get aggregated spend statistics. |
 
 ## Environment variables
 
