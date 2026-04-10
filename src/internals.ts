@@ -9,4 +9,5 @@ export {
   unwrapCardList,
   findByAgentTag,
   extractRequestId,
+  qs,
 } from './client.js';

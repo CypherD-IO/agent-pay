@@ -6,6 +6,7 @@ import {
   unwrapCardList,
   findByAgentTag,
   extractRequestId,
+  qs,
 } from '../internals.js';
 import { parseExpiry, createClient, AgentPayAuthError, AgentPayApiError } from '../index.js';
 
@@ -311,5 +312,313 @@ describe('createClient', () => {
         expect(apiErr.body).toBe('Not Found');
       }
     });
+  });
+
+  describe('requestToken', () => {
+    it('sends POST without Authorization header', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+      await client.requestToken('user@example.com');
+
+      const [url, init] = mockFetch.mock.calls[0]!;
+      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/auth/request-token');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(init.body as string)).toEqual({ email: 'user@example.com' });
+      expect(init.headers).not.toHaveProperty('Authorization');
+      expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    });
+  });
+
+  describe('verifyOtp', () => {
+    it('sends POST without Authorization header and returns tokens', async () => {
+      const client = makeClient();
+      const response = { agentId: 'ag-1', token: 'agt_new', webToken: 'jwt.web.token' };
+      mockFetch.mockResolvedValueOnce(jsonResponse(response));
+
+      const result = await client.verifyOtp('user@example.com', 1689);
+
+      const [url, init] = mockFetch.mock.calls[0]!;
+      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/auth/verify-otp');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(init.body as string)).toEqual({ email: 'user@example.com', otp: 1689 });
+      expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+      expect(result).toEqual(response);
+    });
+  });
+
+  describe('submitApplication', () => {
+    it('sends correct body and returns application response', async () => {
+      const client = makeClient();
+      const dto = {
+        firstName: 'John',
+        lastName: 'Doe',
+        phone: '+15551234567',
+        email: 'john@example.com',
+        dateOfBirth: '1990-01-15',
+        line1: '123 Main St',
+        city: 'Springfield',
+        state: 'IL',
+        country: 'US',
+        postalCode: '62704',
+      };
+      const response = { kycAlreadyComplete: false, kycUrl: 'https://sumsub.example.com/verify' };
+      mockFetch.mockResolvedValueOnce(jsonResponse(response));
+
+      const result = await client.submitApplication(dto);
+
+      const [url, init] = mockFetch.mock.calls[0]!;
+      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/application');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(init.body as string)).toEqual(dto);
+      expect(result.kycUrl).toBe('https://sumsub.example.com/verify');
+    });
+  });
+
+  describe('getKycStatus', () => {
+    it('returns flat KYC status', async () => {
+      const client = makeClient();
+      const response = { kycId: 'kyc-1', kycStatus: 'pending', kycProvider: 'SS' };
+      mockFetch.mockResolvedValueOnce(jsonResponse(response));
+
+      const result = await client.getKycStatus();
+
+      expect(mockFetch.mock.calls[0]![0]).toBe('https://test.example.com/v1/agent-pay-bot/kyc');
+      expect(result.kycStatus).toBe('pending');
+    });
+  });
+
+  describe('rotateToken', () => {
+    it('sends ttlSeconds when provided', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse({ token: 'agt_rotated' }));
+
+      const result = await client.rotateToken(86400);
+
+      const [, init] = mockFetch.mock.calls[0]!;
+      expect(JSON.parse(init.body as string)).toEqual({ ttlSeconds: 86400 });
+      expect(result.token).toBe('agt_rotated');
+    });
+
+    it('omits ttlSeconds when not provided', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse({ token: 'agt_rotated' }));
+
+      await client.rotateToken();
+
+      const [, init] = mockFetch.mock.calls[0]!;
+      expect(JSON.parse(init.body as string)).toEqual({});
+    });
+  });
+
+  describe('getCardRequest', () => {
+    it('fetches card request status by requestId', async () => {
+      const client = makeClient();
+      const response = { agentId: 'ag-1', status: 'AUTO_APPROVED', cardId: 'card-99' };
+      mockFetch.mockResolvedValueOnce(jsonResponse(response));
+
+      const result = await client.getCardRequest('req-42');
+
+      expect(mockFetch.mock.calls[0]![0]).toBe(
+        'https://test.example.com/v1/agent-pay-bot/card/requests/req-42',
+      );
+      expect(result.cardId).toBe('card-99');
+    });
+  });
+
+  describe('getCard', () => {
+    it('fetches card detail by cardId', async () => {
+      const client = makeClient();
+      const response = { cardId: 'card-1', status: 'active', cardProvider: 'reap' };
+      mockFetch.mockResolvedValueOnce(jsonResponse(response));
+
+      const result = await client.getCard('card-1');
+
+      expect(mockFetch.mock.calls[0]![0]).toBe(
+        'https://test.example.com/v1/agent-pay-bot/card/card-1',
+      );
+      expect(result.cardId).toBe('card-1');
+    });
+  });
+
+  describe('getCardTransactions', () => {
+    it('builds query string from opts and omits undefined params', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+      await client.getCardTransactions('card-1', { limit: 10, startDate: 1700000000 });
+
+      const url = mockFetch.mock.calls[0]![0] as string;
+      expect(url).toContain('/card/card-1/transactions?');
+      expect(url).toContain('limit=10');
+      expect(url).toContain('startDate=1700000000');
+      expect(url).not.toContain('offset');
+      expect(url).not.toContain('endDate');
+    });
+
+    it('calls without query string when no opts', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+      await client.getCardTransactions('card-1');
+
+      expect(mockFetch.mock.calls[0]![0]).toBe(
+        'https://test.example.com/v1/agent-pay-bot/card/card-1/transactions',
+      );
+    });
+  });
+
+  describe('getCardLimits', () => {
+    it('fetches limits for a card', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse({ cusL: { dom: { pos: 1000 } } }));
+
+      const result = await client.getCardLimits('card-1');
+
+      expect(mockFetch.mock.calls[0]![0]).toBe(
+        'https://test.example.com/v1/agent-pay-bot/card/card-1/limits',
+      );
+      expect(result).toEqual({ cusL: { dom: { pos: 1000 } } });
+    });
+  });
+
+  describe('updateCardLimits', () => {
+    it('sends PATCH with limits body', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+      await client.updateCardLimits('card-1', { cusL: { dom: { pos: 500 } } });
+
+      const [url, init] = mockFetch.mock.calls[0]!;
+      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/card/card-1/limits');
+      expect(init.method).toBe('PATCH');
+      expect(JSON.parse(init.body as string)).toEqual({ cusL: { dom: { pos: 500 } } });
+    });
+  });
+
+  describe('getFundingUrl', () => {
+    it('sends fiatAmount and returns Transak URL', async () => {
+      const client = makeClient();
+      const response = {
+        transakUrl: 'https://transak.example.com/widget',
+        quoteId: 'q-1',
+        urlExpiresAt: '2026-04-10T12:00:00Z',
+      };
+      mockFetch.mockResolvedValueOnce(jsonResponse(response));
+
+      const result = await client.getFundingUrl(100);
+
+      const [url, init] = mockFetch.mock.calls[0]!;
+      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/fund');
+      expect(JSON.parse(init.body as string)).toEqual({ fiatAmount: 100 });
+      expect(result.transakUrl).toBe('https://transak.example.com/widget');
+    });
+  });
+
+  describe('reportFundStatus', () => {
+    it('sends correct body shape', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse({ message: 'ok' }));
+
+      const dto = {
+        quoteId: 'q-1',
+        transakOrderId: 'order-1',
+        status: 'COMPLETED',
+        transactionHash: '0xabc',
+      };
+      const result = await client.reportFundStatus(dto);
+
+      const [url, init] = mockFetch.mock.calls[0]!;
+      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/fund/status');
+      expect(JSON.parse(init.body as string)).toEqual(dto);
+      expect(result.message).toBe('ok');
+    });
+  });
+
+  describe('getAllTransactions', () => {
+    it('passes opts as query params', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+      await client.getAllTransactions({ limit: '20', cardId: 'card-1' });
+
+      const url = mockFetch.mock.calls[0]![0] as string;
+      expect(url).toContain('/transactions?');
+      expect(url).toContain('limit=20');
+      expect(url).toContain('cardId=card-1');
+    });
+  });
+
+  describe('getSpendStats', () => {
+    it('passes date range as query params', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValueOnce(jsonResponse({}));
+
+      await client.getSpendStats({ startDate: '2026-04-01', endDate: '2026-04-10' });
+
+      const url = mockFetch.mock.calls[0]![0] as string;
+      expect(url).toContain('/spend-stats?');
+      expect(url).toContain('startDate=2026-04-01');
+      expect(url).toContain('endDate=2026-04-10');
+    });
+  });
+
+  describe('pollKycUntilComplete', () => {
+    it('resolves when kycStatus is completed', async () => {
+      const client = makeClient();
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ kycStatus: 'pending' }))
+        .mockResolvedValueOnce(jsonResponse({ kycStatus: 'completed', kycId: 'kyc-1' }));
+
+      const result = await client.pollKycUntilComplete({ timeoutMs: 5_000, intervalMs: 10 });
+
+      expect(result.kycStatus).toBe('completed');
+    });
+
+    it('swallows 4xx errors and keeps polling', async () => {
+      const client = makeClient();
+      mockFetch
+        .mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
+        .mockResolvedValueOnce(jsonResponse({ kycStatus: 'completed' }));
+
+      const result = await client.pollKycUntilComplete({ timeoutMs: 5_000, intervalMs: 10 });
+
+      expect(result.kycStatus).toBe('completed');
+    });
+
+    it('throws on timeout', async () => {
+      const client = makeClient();
+      mockFetch.mockResolvedValue(jsonResponse({ kycStatus: 'pending' }));
+
+      await expect(
+        client.pollKycUntilComplete({ timeoutMs: 50, intervalMs: 10 }),
+      ).rejects.toThrow('did not reach "completed" before timeout');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// qs utility tests
+// ---------------------------------------------------------------------------
+
+describe('qs', () => {
+  it('returns empty string for empty object', () => {
+    expect(qs({})).toBe('');
+  });
+
+  it('builds query string from params', () => {
+    expect(qs({ a: '1', b: 2 })).toBe('?a=1&b=2');
+  });
+
+  it('omits undefined values', () => {
+    expect(qs({ a: '1', b: undefined, c: '3' })).toBe('?a=1&c=3');
+  });
+
+  it('encodes special characters', () => {
+    expect(qs({ q: 'hello world' })).toBe('?q=hello%20world');
+  });
+
+  it('returns empty string when all values undefined', () => {
+    expect(qs({ a: undefined, b: undefined })).toBe('');
   });
 });

@@ -68,6 +68,85 @@ export interface ResolvedCard {
   readonly tag: string;
 }
 
+export interface VerifyOtpResponse {
+  readonly agentId: string;
+  readonly token: string;
+  readonly webToken: string;
+}
+
+export interface ApplicationInput {
+  readonly firstName: string;
+  readonly middleName?: string;
+  readonly lastName: string;
+  readonly phone: string;
+  readonly email: string;
+  readonly dateOfBirth: string;
+  readonly line1: string;
+  readonly line2?: string;
+  readonly city: string;
+  readonly state: string;
+  readonly country: string;
+  readonly postalCode: string;
+}
+
+export interface ApplicationResponse {
+  readonly kycAlreadyComplete?: boolean;
+  readonly kycId?: string;
+  readonly applicationStatus?: string;
+  readonly kycUrl?: string;
+  readonly [key: string]: unknown;
+}
+
+export interface KycStatusResponse {
+  readonly kycId?: string;
+  readonly kycStatus?: string;
+  readonly inquiryId?: string;
+  readonly url?: string;
+  readonly kycProvider?: string;
+}
+
+export interface RotateTokenResponse {
+  readonly token: string;
+}
+
+export interface CardRequestStatus {
+  readonly agentId?: string;
+  readonly status?: string;
+  readonly purpose?: string;
+  readonly cardId?: string;
+  readonly [key: string]: unknown;
+}
+
+export interface CardDetail {
+  readonly cardId: string;
+  readonly type?: string;
+  readonly status?: string;
+  readonly agentId?: string;
+  readonly agentTag?: string;
+  readonly cardProvider?: string;
+  readonly [key: string]: unknown;
+}
+
+export interface TransactionQueryOpts {
+  readonly limit?: number;
+  readonly offset?: string;
+  readonly startDate?: number;
+  readonly endDate?: number;
+}
+
+export interface FundingUrlResponse {
+  readonly transakUrl: string;
+  readonly quoteId: string;
+  readonly urlExpiresAt: string;
+}
+
+export interface FundStatusInput {
+  readonly quoteId: string;
+  readonly transakOrderId: string;
+  readonly status: string;
+  readonly transactionHash?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Errors — discriminated union via `type` tag, thrown at the boundary
 // ---------------------------------------------------------------------------
@@ -194,6 +273,13 @@ export const parseExpiry = (expiry: string): ParsedExpiry => {
   };
 };
 
+/** Build a query string from an object, omitting undefined values. */
+export const qs = (params: Record<string, string | number | undefined>): string => {
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined);
+  if (!entries.length) return '';
+  return '?' + entries.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
+};
+
 // ---------------------------------------------------------------------------
 // Async combinators
 // ---------------------------------------------------------------------------
@@ -255,13 +341,35 @@ const pollUntil = async <T>(
 
 /** The public API surface returned by `createClient`. */
 export interface AgentPayClient {
+  /** Send a one-time password to the given email. No auth required. */
+  readonly requestToken: (email: string) => Promise<void>;
+  /** Verify OTP and receive bot + web tokens. No auth required. */
+  readonly verifyOtp: (email: string, otp: number) => Promise<VerifyOtpResponse>;
+  /** Submit a KYC application. */
+  readonly submitApplication: (dto: ApplicationInput) => Promise<ApplicationResponse>;
+  /** Check current KYC status. */
+  readonly getKycStatus: () => Promise<KycStatusResponse>;
+  /** Poll KYC status until completed or timeout. */
+  readonly pollKycUntilComplete: (opts?: { readonly timeoutMs?: number; readonly intervalMs?: number }) => Promise<KycStatusResponse>;
+  /** Rotate the bot token. The current token becomes invalid immediately. */
+  readonly rotateToken: (ttlSeconds?: number) => Promise<RotateTokenResponse>;
   readonly getAgent: () => Promise<Record<string, unknown>>;
   readonly getBalanceCents: () => Promise<number>;
   readonly createCard: (input: CreateCardInput) => Promise<CreateCardResponse>;
   readonly createCardAndResolve: (input: CreateCardInput & { readonly tag: string }) => Promise<ResolvedCard>;
   readonly listAllCards: () => Promise<readonly unknown[]>;
   readonly listCardsByTag: (tag: string) => Promise<readonly unknown[]>;
+  /** Get the status of a card creation request. */
+  readonly getCardRequest: (requestId: string) => Promise<CardRequestStatus>;
+  /** Get full card metadata by card ID. */
+  readonly getCard: (cardId: string) => Promise<CardDetail>;
   readonly revealCard: (cardId: string) => Promise<RevealCardResponse>;
+  /** Get transactions for a specific card. */
+  readonly getCardTransactions: (cardId: string, opts?: TransactionQueryOpts) => Promise<unknown>;
+  /** Get provider-level limits for a card. */
+  readonly getCardLimits: (cardId: string) => Promise<unknown>;
+  /** Update provider-level limits for a card. */
+  readonly updateCardLimits: (cardId: string, limits: Record<string, unknown>) => Promise<unknown>;
   readonly setCardStatus: (cardId: string, status: 'active' | 'inactive') => Promise<void>;
   readonly freezeCard: (cardId: string) => Promise<void>;
   readonly patchRules: (rules: Rules) => Promise<unknown>;
@@ -273,6 +381,14 @@ export interface AgentPayClient {
     cardId: string,
     opts?: { readonly timeoutMs?: number; readonly intervalMs?: number },
   ) => Promise<ThreeDsPollResult>;
+  /** Get a Transak funding URL. */
+  readonly getFundingUrl: (fiatAmount: number) => Promise<FundingUrlResponse>;
+  /** Report the status of a Transak funding transaction. */
+  readonly reportFundStatus: (dto: FundStatusInput) => Promise<{ readonly message: string }>;
+  /** Get cross-card transaction history. */
+  readonly getAllTransactions: (opts?: Record<string, string>) => Promise<unknown>;
+  /** Get spending statistics. */
+  readonly getSpendStats: (opts?: { readonly startDate?: string; readonly endDate?: string }) => Promise<unknown>;
 }
 
 /**
@@ -314,7 +430,37 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
   const patch = <T = unknown>(path: string, body: unknown) =>
     botFetch<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
 
+  /** Unauthenticated POST — used only for auth endpoints (no Authorization header). */
+  const publicPost = async <T = unknown>(path: string, body?: unknown): Promise<T> => {
+    const res = await fetch(`${baseUrl}/agent-pay-bot${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new AgentPayApiError(res.status, path, text);
+    }
+    const text = await res.text();
+    return (text ? JSON.parse(text) : undefined) as T;
+  };
+
   // -- API functions (closed over transport, no `this`) --
+
+  const requestToken = (email: string) =>
+    publicPost<void>('/auth/request-token', { email });
+
+  const verifyOtp = (email: string, otp: number) =>
+    publicPost<VerifyOtpResponse>('/auth/verify-otp', { email, otp });
+
+  const submitApplication = (dto: ApplicationInput) =>
+    post<ApplicationResponse>('/application', dto);
+
+  const getKycStatus = () =>
+    get<KycStatusResponse>('/kyc');
+
+  const rotateToken = (ttlSeconds?: number) =>
+    post<RotateTokenResponse>('/token/rotate', ttlSeconds !== undefined ? { ttlSeconds } : undefined);
 
   const getAgent = () => get<Record<string, unknown>>('/agent');
 
@@ -333,8 +479,23 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
   const listCardsByTag = async (tag: string) =>
     unwrapCardList(await get(`/card?tag=${encodeURIComponent(tag)}`));
 
+  const getCardRequest = (requestId: string) =>
+    get<CardRequestStatus>(`/card/requests/${requestId}`);
+
+  const getCard = (cardId: string) =>
+    get<CardDetail>(`/card/${cardId}`);
+
   const revealCard = (cardId: string) =>
     post<RevealCardResponse>(`/card/${cardId}/reveal`);
+
+  const getCardTransactions = (cardId: string, opts?: TransactionQueryOpts) =>
+    get<unknown>(`/card/${cardId}/transactions${qs(opts as Record<string, string | number | undefined> ?? {})}`);
+
+  const getCardLimits = (cardId: string) =>
+    get<unknown>(`/card/${cardId}/limits`);
+
+  const updateCardLimits = (cardId: string, limits: Record<string, unknown>) =>
+    patch<unknown>(`/card/${cardId}/limits`, limits);
 
   const setCardStatus = (cardId: string, status: 'active' | 'inactive') =>
     patch<void>(`/card/${cardId}/status`, { status });
@@ -345,6 +506,18 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
 
   const markOnboarded = () =>
     post<{ agentOnboarded: boolean }>('/onboarded');
+
+  const getFundingUrl = (fiatAmount: number) =>
+    post<FundingUrlResponse>('/fund', { fiatAmount });
+
+  const reportFundStatus = (dto: FundStatusInput) =>
+    post<{ message: string }>('/fund/status', dto);
+
+  const getAllTransactions = (opts?: Record<string, string>) =>
+    get<unknown>(`/transactions${qs(opts as Record<string, string | number | undefined> ?? {})}`);
+
+  const getSpendStats = (opts?: { readonly startDate?: string; readonly endDate?: string }) =>
+    get<unknown>(`/spend-stats${qs(opts as Record<string, string | number | undefined> ?? {})}`);
 
   const get3dsStatus = async (cardId: string): Promise<ThreeDsStatus> => {
     const raw = await get(`/3ds/status/${cardId}`);
@@ -415,14 +588,42 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     return result ?? { approved: false };
   };
 
+  const pollKycUntilComplete = async (
+    opts: { readonly timeoutMs?: number; readonly intervalMs?: number } = {},
+  ): Promise<KycStatusResponse> => {
+    const result = await pollUntil(
+      async () => {
+        const status = await getKycStatus();
+        return status.kycStatus === 'completed' ? status : undefined;
+      },
+      opts.timeoutMs ?? 300_000,
+      opts.intervalMs ?? 5_000,
+    );
+    if (!result) {
+      throw new Error('pollKycUntilComplete: KYC did not reach "completed" before timeout.');
+    }
+    return result;
+  };
+
   return Object.freeze({
+    requestToken,
+    verifyOtp,
+    submitApplication,
+    getKycStatus,
+    pollKycUntilComplete,
+    rotateToken,
     getAgent,
     getBalanceCents,
     createCard,
     createCardAndResolve,
     listAllCards,
     listCardsByTag,
+    getCardRequest,
+    getCard,
     revealCard,
+    getCardTransactions,
+    getCardLimits,
+    updateCardLimits,
     setCardStatus,
     freezeCard,
     patchRules,
@@ -431,5 +632,9 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     approve3ds,
     deny3ds,
     pollAndApprove3ds,
+    getFundingUrl,
+    reportFundStatus,
+    getAllTransactions,
+    getSpendStats,
   });
 };
