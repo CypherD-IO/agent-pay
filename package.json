@@ -1,5 +1,5 @@
 {
-  "name": "@cypherhq/ap-test-throwaway",
+  "name": "@cypherhq/agent-pay",
   "version": "0.1.0-beta.1",
   "description": "TypeScript client for the CypherHQ Agent-Pay API",
   "type": "module",
