@@ -22,4 +22,5 @@ export type {
   FundingUrlResponse,
   FundStatusInput,
   CancelCardResponse,
+  WebSessionResponse,
 } from './client.js';

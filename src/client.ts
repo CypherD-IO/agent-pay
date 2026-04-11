@@ -140,8 +140,14 @@ export interface CancelCardResponse {
   readonly [key: string]: unknown;
 }
 
+export interface WebSessionResponse {
+  readonly webToken: string;
+  readonly expiresInSeconds: number;
+  readonly fundingUrl: string;
+}
+
 export interface FundingUrlResponse {
-  readonly transakUrl: string;
+  readonly redirectUrl: string;
   readonly quoteId: string;
   readonly urlExpiresAt: string;
 }
@@ -360,6 +366,8 @@ export interface AgentPayClient {
   /** Rotate the bot token. The current token becomes invalid immediately. */
   readonly rotateToken: (ttlSeconds?: number) => Promise<RotateTokenResponse>;
   readonly getAgent: () => Promise<Record<string, unknown>>;
+  /** Mint a short-lived (5 min) web JWT. Returns `{ webToken, expiresInSeconds, fundingUrl }`. */
+  readonly createWebSession: () => Promise<WebSessionResponse>;
   readonly getBalanceCents: () => Promise<number>;
   readonly createCard: (input: CreateCardInput) => Promise<CreateCardResponse>;
   readonly createCardAndResolve: (input: CreateCardInput & { readonly tag: string }) => Promise<ResolvedCard>;
@@ -389,9 +397,9 @@ export interface AgentPayClient {
     cardId: string,
     opts?: { readonly timeoutMs?: number; readonly intervalMs?: number },
   ) => Promise<ThreeDsPollResult>;
-  /** Get a Transak funding URL. */
+  /** Get a funding redirect URL. The bot hands this URL to the user to open in a browser. */
   readonly getFundingUrl: (fiatAmount: number) => Promise<FundingUrlResponse>;
-  /** Report the status of a Transak funding transaction. */
+  /** Report funding status manually. In the normal flow the webapp handles this automatically. */
   readonly reportFundStatus: (dto: FundStatusInput) => Promise<{ readonly message: string }>;
   /** Get cross-card transaction history. */
   readonly getAllTransactions: (opts?: Record<string, string>) => Promise<unknown>;
@@ -473,6 +481,9 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     post<RotateTokenResponse>('/token/rotate', ttlSeconds !== undefined ? { ttlSeconds } : undefined);
 
   const getAgent = () => get<Record<string, unknown>>('/agent');
+
+  const createWebSession = () =>
+    post<WebSessionResponse>('/web-session');
 
   const getBalanceCents = async () =>
     toBalanceCents(
@@ -626,6 +637,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     pollKycUntilComplete,
     rotateToken,
     getAgent,
+    createWebSession,
     getBalanceCents,
     createCard,
     createCardAndResolve,

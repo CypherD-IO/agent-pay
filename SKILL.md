@@ -169,23 +169,38 @@ await ap.patchRules({
 
 ### Funding
 
-Funding is async. The SDK returns a URL that a human user must open in a browser to complete fiat payment via Transak. Funds appear on the card balance once the payment settles.
+Funding routes through the CypherD webapp. The SDK returns a `redirectUrl` that the bot hands to the user to open in a browser. The webapp handles the Transak widget, payment, and on-chain verification automatically.
 
 ```typescript
-const { transakUrl, quoteId } = await ap.getFundingUrl(50); // $50 USD
+const { redirectUrl, quoteId } = await ap.getFundingUrl(50); // $50 USD
 
-// Surface this URL to the end user — agents cannot render the payment iframe
-console.log(`Fund your card: ${transakUrl}`);
+// Hand this URL to the user — the bot never touches the payment widget
+console.log(`Open this link to add funds: ${redirectUrl}`);
 
-// After payment completes, the frontend calls reportFundStatus
+// Poll balance until funds arrive
+const cents = await ap.getBalanceCents();
+```
+
+The bot's job ends after sending the URL. The webapp handles everything else (rendering Transak, processing payment, reporting status).
+
+`reportFundStatus` is still available as a manual fallback, but in the normal flow the webapp calls it automatically:
+
+```typescript
+// Manual fallback only — not needed in the normal flow
 await ap.reportFundStatus({
   quoteId,
   transakOrderId: 'txn_abc123',
   status: 'COMPLETED',
 });
+```
 
-// Check updated balance
-const cents = await ap.getBalanceCents();
+### Web Sessions
+
+If the bot needs to send the user to the CypherD webapp for any authenticated action (not just funding), mint a short-lived web session:
+
+```typescript
+const { webToken, expiresInSeconds, fundingUrl } = await ap.createWebSession();
+// webToken is a 5-minute JWT — fundingUrl is a ready-to-open deep link
 ```
 
 ### Transactions
