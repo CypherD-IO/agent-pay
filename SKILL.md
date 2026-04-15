@@ -45,7 +45,7 @@ await ap.freezeCard(cardId); // Always freeze after use
 
 ## Authentication
 
-Agents authenticate via email OTP to obtain a bot token (`agt_` prefix).
+Agents authenticate via email OTP. The bot token (`agt_` prefix) is provisioned separately via the CypherD webapp.
 
 ```typescript
 import { createClient } from '@cypherhq/agent-pay';
@@ -54,12 +54,13 @@ import { createClient } from '@cypherhq/agent-pay';
 const ap = createClient({ token: 'agt_temporary' }); // placeholder — auth endpoints don't need a valid token
 await ap.requestToken('agent@example.com');
 
-// Step 2: Verify OTP → receive tokens
-const { token, webToken } = await ap.verifyOtp('agent@example.com', 123456);
+// Step 2: Verify OTP → receive agentId + web token
+const { agentId, webToken } = await ap.verifyOtp('agent@example.com', 1234);
+// agentId — your agent identifier
+// webToken — short-lived JWT for the CypherD web UI (not the bot token)
 
-// Step 3: Use the bot token for all subsequent calls
-const client = createClient({ token }); // token is agt_...
-const balance = await client.getBalanceCents();
+// The agt_ bot token is provisioned via the CypherD webapp, not this SDK.
+// Set it as AGENT_PAY_TOKEN or pass it to createClient({ token: 'agt_...' }).
 ```
 
 ## Configuration
@@ -68,16 +69,53 @@ const balance = await client.getBalanceCents();
 // Explicit config
 const ap = createClient({
   token: 'agt_your_token',
-  baseUrl: 'https://arch-dev.cypherd.io/v1', // optional, this is the default
+  baseUrl: 'https://arch.cypherd.io/v1', // optional, this is the default
 });
 
 // Or via environment variables
 // AGENT_PAY_TOKEN=agt_your_token
-// AGENT_PAY_BASE_URL=https://arch-dev.cypherd.io/v1
+// AGENT_PAY_BASE_URL=https://arch.cypherd.io/v1
 const ap = createClient();
 ```
 
 ## Operations
+
+### Onboarding
+
+Submit a card application, complete KYC, and verify your agent is set up.
+
+```typescript
+// Submit application with personal details
+const app = await ap.submitApplication({
+  firstName: 'Alice',
+  lastName: 'Smith',
+  phone: '+14155551234',
+  email: 'alice@example.com',
+  dateOfBirth: '1990-01-15',
+  line1: '123 Main St',
+  city: 'San Francisco',
+  state: 'CA',
+  country: 'US',
+  postalCode: '94105',
+});
+// app.kycUrl — open in browser to complete identity verification
+
+// Poll KYC status until approved (default: 5min timeout, polls every 5s)
+const kyc = await ap.pollKycUntilComplete();
+
+// Or check manually
+const kycStatus = await ap.getKycStatus();
+
+// Verify agent is active
+const agent = await ap.getAgent();
+```
+
+### Balance
+
+```typescript
+const cents = await ap.getBalanceCents();
+console.log(`Available: $${(cents / 100).toFixed(2)}`);
+```
 
 ### Card Creation
 
@@ -93,6 +131,10 @@ const result = await ap.createCard({
   monthlyLimitUsd: 2000,
 });
 // result: { status: 'APPROVED', tag: 'purchase-99' }
+
+// Check status of a pending card creation request
+const request = await ap.getCardRequest(requestId);
+// request: { status, cardId?, purpose?, agentId? }
 
 // Create and resolve cardId (recommended)
 const { cardId, tag } = await ap.createCardAndResolve({
@@ -139,25 +181,30 @@ await ap.cancelCard(cardId, 'Purchase complete');
 
 Default limits: $500/day, $5,000/month, $500/transaction, max 5 cards per agent.
 
-```typescript
-const limits = await ap.getCardLimits(cardId);
-
-await ap.updateCardLimits(cardId, {
-  dailyLimit: 100,
-  monthlyLimit: 500,
-  maxTransactionAmount: 50,
-});
-```
-
-Agent-level rules override card-level limits:
+Daily, monthly, and per-transaction limits are controlled at the **agent level** via `patchRules`, or set per card at creation time:
 
 ```typescript
+// Agent-level rules (apply as ceilings to all cards)
 await ap.patchRules({
   maxCards: 10,
   dailyLimit: 1000,
   monthlyLimit: 5000,
   maxTransactionAmount: 500,
 });
+
+// Per-card limits set at creation (capped by agent rules)
+const { cardId } = await ap.createCardAndResolve({
+  tag: 'order-1',
+  maxPerTransactionAmount: 50,
+  dailyLimitUsd: 200,
+  monthlyLimitUsd: 1000,
+});
+```
+
+`getCardLimits` and `updateCardLimits` expose provider-level card controls (merchant restrictions, transaction channel settings, etc.):
+
+```typescript
+const limits = await ap.getCardLimits(cardId);
 ```
 
 ### Funding
@@ -165,7 +212,7 @@ await ap.patchRules({
 Funding routes through the CypherD webapp. The SDK returns a `redirectUrl` that the bot hands to the user to open in a browser. The webapp handles the Transak widget, payment, and on-chain verification automatically.
 
 ```typescript
-const { redirectUrl, quoteId } = await ap.getFundingUrl(50); // $50 USD
+const { redirectUrl, quoteId, urlExpiresAt } = await ap.getFundingUrl(50); // $50 USD
 
 // Hand this URL to the user — the bot never touches the payment widget
 console.log(`Open this link to add funds: ${redirectUrl}`);
@@ -362,6 +409,29 @@ Key exports:
 - `parseExpiry(expiry)` — parse `MM/YY` or `MM/YYYY` into `{ expiryMonth, expiryYear }`
 - `AgentPayAuthError` — thrown on 401
 - `AgentPayApiError` — thrown on non-2xx (carries `status`, `path`, `body`)
+
+Types:
+- `AgentPayClient` — the record type returned by `createClient`
+- `AgentPayConfig` — `{ token?, baseUrl? }`
+- `AgentPayError` — union: `AgentPayAuthError | AgentPayApiError`
+- `CreateCardInput` — input for card creation
+- `CreateCardResponse` — response from card creation
+- `RevealCardResponse` — PAN/CVV/expiry from reveal
+- `ResolvedCard` — `{ cardId, tag }` from `createCardAndResolve`
+- `ApplicationInput` — personal details for onboarding
+- `ApplicationResponse` — application result with `kycUrl`
+- `KycStatusResponse` — KYC verification status
+- `VerifyOtpResponse` — `{ agentId, webToken }` from OTP verification
+- `CardDetail` — card metadata
+- `CardRequestStatus` — card creation request status
+- `TransactionQueryOpts` — per-card transaction query parameters
+- `FundingUrlResponse` — `{ redirectUrl, quoteId, urlExpiresAt }`
+- `FundStatusInput` — manual funding status report
+- `CancelCardResponse` — cancel confirmation
+- `ThreeDsStatus` — 3DS status check result
+- `ThreeDsPollResult` — result of `pollAndApprove3ds`
+- `ParsedExpiry` — `{ expiryMonth, expiryYear }`
+- `Rules` — agent rule set for `patchRules`
 
 Environment variables:
 - `AGENT_PAY_TOKEN` — bot token (required unless passed in config)

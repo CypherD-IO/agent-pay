@@ -60,7 +60,7 @@ if (result.approved) {
 | Variable | Required | Description |
 |---|---|---|
 | `AGENT_PAY_TOKEN` | Yes (unless passed in config) | Bot token — must start with `agt_` |
-| `AGENT_PAY_BASE_URL` | No | API base URL. Defaults to `https://arch-dev.cypherd.io/v1` |
+| `AGENT_PAY_BASE_URL` | No | API base URL. Defaults to `https://arch.cypherd.io/v1` |
 
 You can pass these directly in the config instead:
 

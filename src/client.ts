@@ -16,7 +16,7 @@
 export interface AgentPayConfig {
   /** Bot token, must start with `agt_`. Defaults to `process.env.AGENT_PAY_TOKEN`. */
   readonly token?: string;
-  /** API base URL incl. `/v1`. Defaults to `process.env.AGENT_PAY_BASE_URL` or arch-dev. */
+  /** API base URL incl. `/v1`. Defaults to `process.env.AGENT_PAY_BASE_URL` or `https://arch.cypherd.io/v1`. */
   readonly baseUrl?: string;
 }
 
@@ -70,7 +70,6 @@ export interface ResolvedCard {
 
 export interface VerifyOtpResponse {
   readonly agentId: string;
-  readonly token: string;
   readonly webToken: string;
 }
 
@@ -186,7 +185,7 @@ export type AgentPayError = AgentPayAuthError | AgentPayApiError;
 // Pure functions
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BASE = 'https://arch-dev.cypherd.io/v1';
+const DEFAULT_BASE = 'https://arch.cypherd.io/v1';
 
 /** Validate + normalize config into a resolved `{ token, baseUrl }` pair. */
 export const resolveConfig = (

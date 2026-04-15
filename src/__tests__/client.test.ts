@@ -75,7 +75,7 @@ describe('resolveConfig', () => {
 
   it('uses default base URL when none provided', () => {
     const { baseUrl } = resolveConfig({ token: 'agt_test' });
-    expect(baseUrl).toBe('https://arch-dev.cypherd.io/v1');
+    expect(baseUrl).toBe('https://arch.cypherd.io/v1');
   });
 });
 
