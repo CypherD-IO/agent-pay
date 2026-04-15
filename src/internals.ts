@@ -7,7 +7,7 @@ export {
   coerceNum,
   toBalanceCents,
   unwrapCardList,
-  findByAgentTag,
+  findByCardTag,
   extractRequestId,
   qs,
 } from './client.js';

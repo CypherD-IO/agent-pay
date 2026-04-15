@@ -4,7 +4,7 @@ import {
   coerceNum,
   toBalanceCents,
   unwrapCardList,
-  findByAgentTag,
+  findByCardTag,
   extractRequestId,
   qs,
 } from '../internals.js';
@@ -158,35 +158,35 @@ describe('unwrapCardList', () => {
   });
 });
 
-describe('findByAgentTag', () => {
+describe('findByCardTag', () => {
   const cards = [
-    { agentTag: 'tag-1', cardId: 'card-1' },
-    { agentTag: 'tag-2', id: 'card-2' },
-    { agentTag: 'tag-3', _id: 'card-3' },
+    { cardTag: 'tag-1', cardId: 'card-1' },
+    { cardTag: 'tag-2', id: 'card-2' },
+    { cardTag: 'tag-3', _id: 'card-3' },
   ];
 
   it('finds by cardId field', () => {
-    expect(findByAgentTag(cards, 'tag-1')).toBe('card-1');
+    expect(findByCardTag(cards, 'tag-1')).toBe('card-1');
   });
 
   it('falls back to id field', () => {
-    expect(findByAgentTag(cards, 'tag-2')).toBe('card-2');
+    expect(findByCardTag(cards, 'tag-2')).toBe('card-2');
   });
 
   it('falls back to _id field', () => {
-    expect(findByAgentTag(cards, 'tag-3')).toBe('card-3');
+    expect(findByCardTag(cards, 'tag-3')).toBe('card-3');
   });
 
   it('returns undefined for unknown tag', () => {
-    expect(findByAgentTag(cards, 'tag-999')).toBeUndefined();
+    expect(findByCardTag(cards, 'tag-999')).toBeUndefined();
   });
 
   it('returns undefined for empty list', () => {
-    expect(findByAgentTag([], 'tag-1')).toBeUndefined();
+    expect(findByCardTag([], 'tag-1')).toBeUndefined();
   });
 
   it('skips non-objects', () => {
-    expect(findByAgentTag([null, 42, 'str'], 'tag-1')).toBeUndefined();
+    expect(findByCardTag([null, 42, 'str'], 'tag-1')).toBeUndefined();
   });
 });
 
@@ -388,29 +388,6 @@ describe('createClient', () => {
     });
   });
 
-  describe('rotateToken', () => {
-    it('sends ttlSeconds when provided', async () => {
-      const client = makeClient();
-      mockFetch.mockResolvedValueOnce(jsonResponse({ token: 'agt_rotated' }));
-
-      const result = await client.rotateToken(86400);
-
-      const [, init] = mockFetch.mock.calls[0]!;
-      expect(JSON.parse(init.body as string)).toEqual({ ttlSeconds: 86400 });
-      expect(result.token).toBe('agt_rotated');
-    });
-
-    it('omits ttlSeconds when not provided', async () => {
-      const client = makeClient();
-      mockFetch.mockResolvedValueOnce(jsonResponse({ token: 'agt_rotated' }));
-
-      await client.rotateToken();
-
-      const [, init] = mockFetch.mock.calls[0]!;
-      expect(JSON.parse(init.body as string)).toEqual({});
-    });
-  });
-
   describe('getCardRequest', () => {
     it('fetches card request status by requestId', async () => {
       const client = makeClient();
@@ -497,10 +474,10 @@ describe('createClient', () => {
   });
 
   describe('getFundingUrl', () => {
-    it('sends fiatAmount and returns Transak URL', async () => {
+    it('sends fiatAmount and returns redirect URL', async () => {
       const client = makeClient();
       const response = {
-        transakUrl: 'https://transak.example.com/widget',
+        redirectUrl: 'https://agent-dev.cypherd.io/fund?token=jwt&quoteId=q-1',
         quoteId: 'q-1',
         urlExpiresAt: '2026-04-10T12:00:00Z',
       };
@@ -511,7 +488,7 @@ describe('createClient', () => {
       const [url, init] = mockFetch.mock.calls[0]!;
       expect(url).toBe('https://test.example.com/v1/agent-pay-bot/fund');
       expect(JSON.parse(init.body as string)).toEqual({ fiatAmount: 100 });
-      expect(result.transakUrl).toBe('https://transak.example.com/widget');
+      expect(result.redirectUrl).toBe('https://agent-dev.cypherd.io/fund?token=jwt&quoteId=q-1');
     });
   });
 

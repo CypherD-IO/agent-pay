@@ -105,10 +105,6 @@ export interface KycStatusResponse {
   readonly kycProvider?: string;
 }
 
-export interface RotateTokenResponse {
-  readonly token: string;
-}
-
 export interface CardRequestStatus {
   readonly agentId?: string;
   readonly status?: string;
@@ -119,11 +115,16 @@ export interface CardRequestStatus {
 
 export interface CardDetail {
   readonly cardId: string;
-  readonly type?: string;
-  readonly status?: string;
+  readonly fdId?: string;
+  readonly last4?: string;
+  readonly network?: string;
+  readonly cardTag?: string;
   readonly agentId?: string;
-  readonly agentTag?: string;
-  readonly cardProvider?: string;
+  readonly isOneTimeCard?: boolean;
+  readonly dailyLimit?: number | null;
+  readonly monthlyLimit?: number | null;
+  readonly status?: string;
+  readonly createdAt?: string;
   readonly [key: string]: unknown;
 }
 
@@ -138,12 +139,6 @@ export interface CancelCardResponse {
   readonly cardId: string;
   readonly status: string;
   readonly [key: string]: unknown;
-}
-
-export interface WebSessionResponse {
-  readonly webToken: string;
-  readonly expiresInSeconds: number;
-  readonly fundingUrl: string;
 }
 
 export interface FundingUrlResponse {
@@ -245,13 +240,13 @@ export const unwrapCardList = (raw: unknown): readonly unknown[] => {
   return [];
 };
 
-/** Find a card's id in a listing by its `agentTag`. */
-export const findByAgentTag = (cards: readonly unknown[], tag: string): string | undefined =>
+/** Find a card's id in a listing by its `cardTag`. */
+export const findByCardTag = (cards: readonly unknown[], tag: string): string | undefined =>
   cards.reduce<string | undefined>((found, c) => {
     if (found) return found;
     if (!c || typeof c !== 'object') return undefined;
     const obj = c as Record<string, unknown>;
-    if (obj.agentTag !== tag) return undefined;
+    if (obj.cardTag !== tag) return undefined;
     const id = obj.cardId ?? obj.id ?? obj._id;
     return typeof id === 'string' ? id : undefined;
   }, undefined);
@@ -363,11 +358,7 @@ export interface AgentPayClient {
   readonly getKycStatus: () => Promise<KycStatusResponse>;
   /** Poll KYC status until completed or timeout. */
   readonly pollKycUntilComplete: (opts?: { readonly timeoutMs?: number; readonly intervalMs?: number }) => Promise<KycStatusResponse>;
-  /** Rotate the bot token. The current token becomes invalid immediately. */
-  readonly rotateToken: (ttlSeconds?: number) => Promise<RotateTokenResponse>;
   readonly getAgent: () => Promise<Record<string, unknown>>;
-  /** Mint a short-lived (5 min) web JWT. Returns `{ webToken, expiresInSeconds, fundingUrl }`. */
-  readonly createWebSession: () => Promise<WebSessionResponse>;
   readonly getBalanceCents: () => Promise<number>;
   readonly createCard: (input: CreateCardInput) => Promise<CreateCardResponse>;
   readonly createCardAndResolve: (input: CreateCardInput & { readonly tag: string }) => Promise<ResolvedCard>;
@@ -389,7 +380,6 @@ export interface AgentPayClient {
   readonly setCardStatus: (cardId: string, status: 'active' | 'inactive') => Promise<void>;
   readonly freezeCard: (cardId: string) => Promise<void>;
   readonly patchRules: (rules: Rules) => Promise<unknown>;
-  readonly markOnboarded: () => Promise<{ readonly agentOnboarded: boolean }>;
   readonly get3dsStatus: (cardId: string) => Promise<ThreeDsStatus>;
   readonly approve3ds: (requestId: string) => Promise<void>;
   readonly deny3ds: (requestId: string) => Promise<void>;
@@ -477,13 +467,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
   const getKycStatus = () =>
     get<KycStatusResponse>('/kyc');
 
-  const rotateToken = (ttlSeconds?: number) =>
-    post<RotateTokenResponse>('/token/rotate', ttlSeconds !== undefined ? { ttlSeconds } : undefined);
-
   const getAgent = () => get<Record<string, unknown>>('/agent');
-
-  const createWebSession = () =>
-    post<WebSessionResponse>('/web-session');
 
   const getBalanceCents = async () =>
     toBalanceCents(
@@ -527,9 +511,6 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
   const freezeCard = (cardId: string) => setCardStatus(cardId, 'inactive');
 
   const patchRules = (rules: Rules) => patch('/rules', { rules });
-
-  const markOnboarded = () =>
-    post<{ agentOnboarded: boolean }>('/onboarded');
 
   const getFundingUrl = (fiatAmount: number) =>
     post<FundingUrlResponse>('/fund', { fiatAmount });
@@ -581,7 +562,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
 
     // Step 2: poll listing until the card surfaces.
     const cardId = await pollUntil(
-      async () => findByAgentTag(await listAllCards(), resolvedTag.tag),
+      async () => findByCardTag(await listAllCards(), resolvedTag.tag),
       30_000,
       1_000,
     );
@@ -635,9 +616,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     submitApplication,
     getKycStatus,
     pollKycUntilComplete,
-    rotateToken,
     getAgent,
-    createWebSession,
     getBalanceCents,
     createCard,
     createCardAndResolve,
@@ -653,7 +632,6 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
     setCardStatus,
     freezeCard,
     patchRules,
-    markOnboarded,
     get3dsStatus,
     approve3ds,
     deny3ds,

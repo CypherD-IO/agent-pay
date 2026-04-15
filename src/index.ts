@@ -15,12 +15,10 @@ export type {
   ApplicationInput,
   ApplicationResponse,
   KycStatusResponse,
-  RotateTokenResponse,
   CardRequestStatus,
   CardDetail,
   TransactionQueryOpts,
   FundingUrlResponse,
   FundStatusInput,
   CancelCardResponse,
-  WebSessionResponse,
 } from './client.js';
