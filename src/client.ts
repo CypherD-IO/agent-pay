@@ -537,7 +537,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
 
   const isRetryableCreateError = (err: unknown): boolean => {
     const msg = err instanceof Error ? err.message : String(err);
-    return msg.includes('fdActionRequestId not found');
+    return msg.includes('RequestId not found');
   };
 
   const createCardAndResolve = async (

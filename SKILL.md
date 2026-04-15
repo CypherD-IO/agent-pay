@@ -62,13 +62,6 @@ const client = createClient({ token }); // token is agt_...
 const balance = await client.getBalanceCents();
 ```
 
-The bot token is valid for 90 days by default. Rotate it before expiry:
-
-```typescript
-const { token: newToken } = await client.rotateToken(); // previous token invalidated immediately
-const refreshed = createClient({ token: newToken });
-```
-
 ## Configuration
 
 ```typescript
@@ -192,15 +185,6 @@ await ap.reportFundStatus({
   transakOrderId: 'txn_abc123',
   status: 'COMPLETED',
 });
-```
-
-### Web Sessions
-
-If the bot needs to send the user to the CypherD webapp for any authenticated action (not just funding), mint a short-lived web session:
-
-```typescript
-const { webToken, expiresInSeconds, fundingUrl } = await ap.createWebSession();
-// webToken is a 5-minute JWT — fundingUrl is a ready-to-open deep link
 ```
 
 ### Transactions
@@ -364,7 +348,7 @@ try {
 1. **Never log, persist, or include in error messages**: PAN, CVV, expiry, or full token values
 2. **Always freeze cards after use**, even on failure — use `try/finally`
 3. **Token prefix**: must start with `agt_` — the SDK rejects anything else
-4. **Rotate tokens** before the 90-day expiry using `rotateToken()`
+4. **Rotate tokens** before the 90-day expiry — token rotation is handled via the CypherD webapp, not this SDK
 
 ## SDK Reference
 

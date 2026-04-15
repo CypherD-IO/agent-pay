@@ -15,7 +15,7 @@ Users of this package are developers building AI agents that need to make real p
 This package is written in a **functional style**:
 
 - **No classes for the client.** `createClient(config)` is a factory that returns a `Object.freeze()`'d record of functions. Config is captured via closure — no `this`, no `new`, no mutable state.
-- **Pure functions** for all data transformations (`parseExpiry`, `toBalanceCents`, `unwrapCardList`, `findByAgentTag`, `extractRequestId`, `coerceNum`, `resolveConfig`). Only `parseExpiry` is part of the public API (`index.ts`). The rest are exported from `client.ts` for testability via `internals.ts`, but not re-exported from `index.ts`.
+- **Pure functions** for all data transformations (`parseExpiry`, `toBalanceCents`, `unwrapCardList`, `findByCardTag`, `extractRequestId`, `coerceNum`, `resolveConfig`). Only `parseExpiry` is part of the public API (`index.ts`). The rest are exported from `client.ts` for testability via `internals.ts`, but not re-exported from `index.ts`.
 - **Generic async combinators** (`retryOn`, `pollUntil`, `delay`) handle retry/polling logic. Both use recursive inner functions (`go`) instead of mutable loops.
 - **All types are `readonly`.**
 - **Errors** use a discriminated union via a `type` tag (`'auth' | 'api'`) and are thrown at the side-effect boundary (`botFetch`).
@@ -76,7 +76,6 @@ The record returned by `createClient()` has these functions:
 | `submitApplication(details)` | Submit KYC/onboarding application. |
 | `getKycStatus()` | Check KYC verification status. |
 | `pollKycUntilComplete(opts?)` | Poll until KYC reaches `"completed"`. |
-| `rotateToken()` | Rotate the bot token. |
 | `getAgent()` | Validate the token. Throws `AgentPayAuthError` on 401. |
 | `getBalanceCents()` | Available balance in USD cents. |
 | `createCard(input)` | Create a virtual card. Returns `{ status, tag }` — **no `cardId`**. |
@@ -93,7 +92,6 @@ The record returned by `createClient()` has these functions:
 | `setCardStatus(cardId, status)` | Freeze (`'inactive'`) or unfreeze (`'active'`). |
 | `freezeCard(cardId)` | Shorthand for `setCardStatus(cardId, 'inactive')`. |
 | `patchRules(rules)` | Update agent rules (limits, max cards). |
-| `markOnboarded()` | Mark agent as onboarded (usually auto-set). |
 | `get3dsStatus(cardId)` | Check for pending 3DS challenge. |
 | `approve3ds(requestId)` | Approve a 3DS challenge. |
 | `deny3ds(requestId)` | Deny a 3DS challenge. |
@@ -122,7 +120,7 @@ The record returned by `createClient()` has these functions:
 - `POST /card` returns `{ status: "APPROVED", tag }` with **no `cardId`**. The `createCardAndResolve` function handles this by polling the card listing.
 - `GET /balance` returns **string-encoded USD**, not numbers. The `toBalanceCents` pure function handles parsing.
 - The card listing endpoint returns varying shapes (raw array, or wrapped in `cards`/`data`/`items`/`results`). The `unwrapCardList` function normalizes this.
-- Cards are matched in listings by the `agentTag` field (not `tag`).
+- Cards are matched in listings by the `cardTag` field (not `tag`).
 - 3DS challenge response shape is provider-dependent — `extractRequestId` walks multiple candidate field names.
 - Tags must be unique per agent. `createCardAndResolve` appends retry suffixes (`-r2`, `-r3`) on transient failures.
 
