@@ -251,7 +251,7 @@ describe('createClient', () => {
       expect(cents).toBe(4250);
       expect(mockFetch).toHaveBeenCalledOnce();
       expect(mockFetch.mock.calls[0]![0]).toBe(
-        'https://test.example.com/v1/agent-pay-bot/balance',
+        'https://test.example.com/v1/agentpay/balance',
       );
     });
   });
@@ -267,7 +267,7 @@ describe('createClient', () => {
       expect(result).toEqual({ status: 'APPROVED', tag: 'my-card' });
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/card');
+      expect(url).toBe('https://test.example.com/v1/agentpay/card');
       expect(init.method).toBe('POST');
       expect(JSON.parse(init.body as string)).toEqual({ tag: 'my-card', purpose: 'test' });
     });
@@ -281,7 +281,7 @@ describe('createClient', () => {
       await client.freezeCard('card-123');
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/card/card-123/status');
+      expect(url).toBe('https://test.example.com/v1/agentpay/card/card-123/status');
       expect(init.method).toBe('PATCH');
       expect(JSON.parse(init.body as string)).toEqual({ status: 'inactive' });
     });
@@ -322,7 +322,7 @@ describe('createClient', () => {
       await client.requestToken('user@example.com');
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/auth/request-token');
+      expect(url).toBe('https://test.example.com/v1/agentpay/auth/request-token');
       expect(init.method).toBe('POST');
       expect(JSON.parse(init.body as string)).toEqual({ email: 'user@example.com' });
       expect(init.headers).not.toHaveProperty('Authorization');
@@ -339,7 +339,7 @@ describe('createClient', () => {
       const result = await client.verifyOtp('user@example.com', 1689);
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/auth/verify-otp');
+      expect(url).toBe('https://test.example.com/v1/agentpay/auth/verify-otp');
       expect(init.method).toBe('POST');
       expect(JSON.parse(init.body as string)).toEqual({ email: 'user@example.com', otp: 1689 });
       expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
@@ -368,7 +368,7 @@ describe('createClient', () => {
       const result = await client.submitApplication(dto);
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/application');
+      expect(url).toBe('https://test.example.com/v1/agentpay/application');
       expect(init.method).toBe('POST');
       expect(JSON.parse(init.body as string)).toEqual(dto);
       expect(result.kycUrl).toBe('https://sumsub.example.com/verify');
@@ -383,7 +383,7 @@ describe('createClient', () => {
 
       const result = await client.getKycStatus();
 
-      expect(mockFetch.mock.calls[0]![0]).toBe('https://test.example.com/v1/agent-pay-bot/kyc');
+      expect(mockFetch.mock.calls[0]![0]).toBe('https://test.example.com/v1/agentpay/kyc');
       expect(result.kycStatus).toBe('pending');
     });
   });
@@ -397,7 +397,7 @@ describe('createClient', () => {
       const result = await client.getCardRequest('req-42');
 
       expect(mockFetch.mock.calls[0]![0]).toBe(
-        'https://test.example.com/v1/agent-pay-bot/card/requests/req-42',
+        'https://test.example.com/v1/agentpay/card/requests/req-42',
       );
       expect(result.cardId).toBe('card-99');
     });
@@ -412,7 +412,7 @@ describe('createClient', () => {
       const result = await client.getCard('card-1');
 
       expect(mockFetch.mock.calls[0]![0]).toBe(
-        'https://test.example.com/v1/agent-pay-bot/card/card-1',
+        'https://test.example.com/v1/agentpay/card/card-1',
       );
       expect(result.cardId).toBe('card-1');
     });
@@ -440,7 +440,7 @@ describe('createClient', () => {
       await client.getCardTransactions('card-1');
 
       expect(mockFetch.mock.calls[0]![0]).toBe(
-        'https://test.example.com/v1/agent-pay-bot/card/card-1/transactions',
+        'https://test.example.com/v1/agentpay/card/card-1/transactions',
       );
     });
   });
@@ -453,7 +453,7 @@ describe('createClient', () => {
       const result = await client.getCardLimits('card-1');
 
       expect(mockFetch.mock.calls[0]![0]).toBe(
-        'https://test.example.com/v1/agent-pay-bot/card/card-1/limits',
+        'https://test.example.com/v1/agentpay/card/card-1/limits',
       );
       expect(result).toEqual({ cusL: { dom: { pos: 1000 } } });
     });
@@ -467,7 +467,7 @@ describe('createClient', () => {
       await client.updateCardLimits('card-1', { cusL: { dom: { pos: 500 } } });
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/card/card-1/limits');
+      expect(url).toBe('https://test.example.com/v1/agentpay/card/card-1/limits');
       expect(init.method).toBe('PATCH');
       expect(JSON.parse(init.body as string)).toEqual({ cusL: { dom: { pos: 500 } } });
     });
@@ -486,7 +486,7 @@ describe('createClient', () => {
       const result = await client.getFundingUrl(100);
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/fund');
+      expect(url).toBe('https://test.example.com/v1/agentpay/fund');
       expect(JSON.parse(init.body as string)).toEqual({ fiatAmount: 100 });
       expect(result.redirectUrl).toBe('https://agent-dev.cypherd.io/fund?token=jwt&quoteId=q-1');
     });
@@ -506,7 +506,7 @@ describe('createClient', () => {
       const result = await client.reportFundStatus(dto);
 
       const [url, init] = mockFetch.mock.calls[0]!;
-      expect(url).toBe('https://test.example.com/v1/agent-pay-bot/fund/status');
+      expect(url).toBe('https://test.example.com/v1/agentpay/fund/status');
       expect(JSON.parse(init.body as string)).toEqual(dto);
       expect(result.message).toBe('ok');
     });

@@ -417,7 +417,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
       ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     };
 
-    const res = await fetch(`${baseUrl}/agent-pay-bot${path}`, { ...init, headers });
+    const res = await fetch(`${baseUrl}/agentpay${path}`, { ...init, headers });
 
     if (res.status === 401) throw new AgentPayAuthError();
     if (!res.ok) {
@@ -439,7 +439,7 @@ export const createClient = (config: AgentPayConfig = {}): AgentPayClient => {
 
   /** Unauthenticated POST — used only for auth endpoints (no Authorization header). */
   const publicPost = async <T = unknown>(path: string, body?: unknown): Promise<T> => {
-    const res = await fetch(`${baseUrl}/agent-pay-bot${path}`, {
+    const res = await fetch(`${baseUrl}/agentpay${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
